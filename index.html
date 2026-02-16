@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบลงคะแนนสภานักเรียน - รร.ประสาทวิทยานนทบุรี</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Sarabun', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+    <nav class="bg-[#003366] text-white p-4 shadow-xl sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img id="nav-logo" src="https://via.placeholder.com/50?text=Logo" alt="School Logo" class="w-12 h-12 rounded-full border-2 border-white object-cover hidden">
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight">ระบบลงคะแนนสภานักเรียน</h1>
+                    <p class="text-xs text-blue-200">โรงเรียนประสาทวิทยานนทบุรี</p>
+                </div>
+            </div>
+            <div class="flex space-x-2 sm:space-x-4 text-sm">
+                <button onclick="showPage('page-register')" class="px-3 py-1 rounded hover:bg-blue-800">โหวต</button>
+                <button onclick="showPage('page-realtime')" class="px-3 py-1 rounded hover:bg-blue-800">ผลคะแนน</button>
+                <button onclick="showPage('page-admin')" class="bg-amber-500 text-black px-3 py-1 rounded shadow-inner font-bold">Admin</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        
+        <section id="page-register" class="page max-w-md mx-auto animate-fade-in">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800">ยืนยันตัวตน</h2>
+                    <p class="text-gray-500">กรอกรหัสประจำตัวเพื่อดำเนินการ</p>
+                </div>
+                <div class="space-y-6">
+                    <input type="text" id="input-id" placeholder="รหัสประจำตัวนักเรียน/ครู" 
+                        class="w-full border-2 border-gray-100 p-4 rounded-2xl text-center text-2xl focus:border-blue-500 outline-none transition-all shadow-sm">
+                    <button onclick="verifyUser()" 
+                        class="w-full bg-[#003366] text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-900 transition-all shadow-lg">
+                        เข้าสู่ระบบ
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="page-vote" class="page hidden space-y-8 animate-fade-in">
+            <div class="bg-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-center border-l-8 border-[#003366]">
+                <div>
+                    <h2 id="user-info" class="text-2xl font-bold text-gray-900">กำลังดึงข้อมูล...</h2>
+                    <p class="text-gray-600">โปรดเลือกเบอร์พรรคที่ต้องการโหวตเพียง 1 เบอร์</p>
+                </div>
+                <button onclick="location.reload()" class="mt-4 md:mt-0 text-red-500 font-medium hover:underline">ยกเลิก/ออก</button>
+            </div>
+            <div id="candidate-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+        </section>
+
+        <section id="page-realtime" class="page hidden">
+            <div class="text-center mb-10">
+                <h2 class="text-4xl font-black text-[#003366] mb-2">ผลคะแนนสด</h2>
+                <p class="text-gray-500 tracking-widest text-sm">อัปเดตอัตโนมัติ</p>
+            </div>
+
+            <div class="max-w-3xl mx-auto mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-6 rounded-3xl shadow-lg border-b-4 border-blue-500 text-center">
+                    <p class="text-gray-500 text-sm">ผู้มีสิทธิ์ทั้งหมด</p>
+                    <p id="stat-total" class="text-3xl font-black text-gray-800">0</p>
+                </div>
+                <div class="bg-white p-6 rounded-3xl shadow-lg border-b-4 border-green-500 text-center">
+                    <p class="text-gray-500 text-sm">มาใช้สิทธิ์แล้ว</p>
+                    <p id="stat-voted" class="text-3xl font-black text-green-600">0</p>
+                </div>
+                <div class="bg-white p-6 rounded-3xl shadow-lg border-b-4 border-amber-500 text-center">
+                    <p class="text-gray-500 text-sm">ยังไม่ใช้สิทธิ์</p>
+                    <p id="stat-pending" class="text-3xl font-black text-red-500">0</p>
+                </div>
+            </div>
+
+            <div class="max-w-3xl mx-auto mb-10 px-4">
+                <div class="flex justify-between mb-2 text-sm font-bold text-gray-600">
+                    <span>ความคืบหน้าการลงคะแนน</span>
+                    <span id="stat-percent-text">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div id="overall-progress-bar" class="bg-blue-600 h-full transition-all duration-1000" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="realtime-results" class="grid gap-4 max-w-3xl mx-auto p-6 bg-white rounded-3xl shadow-lg"></div>
+        </section>
+
+        <section id="page-admin" class="page hidden space-y-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold mb-4 text-blue-700">⚙️ ตั้งค่าระบบ</h3>
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-4">
+                        <span id="status-text" class="font-bold">สถานะ: ปิดการโหวต</span>
+                        <button id="toggle-btn" onclick="toggleVoting()" class="bg-gray-800 text-white px-6 py-2 rounded-full hover:bg-black transition">เปิด/ปิด</button>
+                    </div>
+                    <button onclick="exportResultImage()" class="w-full bg-blue-50 text-blue-700 py-3 rounded-xl font-bold hover:bg-blue-100 transition">📸 บันทึกผลเป็นรูปภาพ</button>
+                    <div class="mt-4 p-4 bg-red-50 rounded-xl border border-red-100">
+                        <p class="text-red-600 text-xs mb-2">* ระวัง: ปุ่มนี้จะล้างคะแนนทั้งหมดเป็นศูนย์</p>
+                        <button onclick="resetSystem()" class="w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-lg shadow-red-100">
+                            ♻️ รีเซ็ตคะแนนและสิทธิ์การโหวต
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold mb-4 text-blue-700">🏫 โลโก้โรงเรียน</h3>
+                    <input type="text" id="school-logo-url" placeholder="วางลิงก์โลโก้จาก Google Drive" class="border w-full p-3 rounded-xl mb-4">
+                    <button onclick="saveLogoUrl()" class="bg-[#003366] text-white px-6 py-2 rounded-xl hover:bg-blue-900 w-full transition font-bold">บันทึกลิงก์โลโก้</button>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2">
+                    <h3 class="text-lg font-bold mb-4 text-blue-700">📊 อัปโหลดรายชื่อ (Excel)</h3>
+                    <input type="file" id="excel-file" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-50 file:text-blue-700 mb-4">
+                    <button onclick="uploadExcel()" class="bg-green-600 text-white px-6 py-2 rounded-xl hover:bg-green-700 w-full transition font-bold">นำเข้าข้อมูลนักเรียน</button>
+                    <div class="mt-4">
+                        <button onclick="exportVoterStatus()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 flex items-center justify-center gap-2">
+                            📥 ส่งออกสถานะการลงคะแนน (Excel)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2">
+                    <h3 class="text-lg font-bold mb-6 text-blue-700">👤 จัดการผู้สมัคร/พรรค (ใช้ลิงก์ Google Drive)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <input type="number" id="c-no" placeholder="เบอร์" class="border p-3 rounded-xl">
+                        <input type="text" id="c-name" placeholder="ชื่อพรรค/ชื่อเล่น" class="border p-3 rounded-xl">
+                        <input type="text" id="c-detail" placeholder="สโลแกน" class="border p-3 rounded-xl">
+                        <input type="text" id="c-img-url" placeholder="วางลิงก์รูป Google Drive" class="border p-3 rounded-xl text-sm">
+                        <button onclick="addCandidate()" id="btn-save-candidate" class="bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700">บันทึกข้อมูล</button>
+                    </div>
+                    <p class="text-xs text-red-500 mt-2">* ลิงก์ Google Drive ต้องตั้งค่าเป็น "ทุกคนที่มีลิงก์มีสิทธิ์อ่าน"</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2 mt-8">
+                    <h3 class="text-lg font-bold mb-4 text-blue-700 flex items-center">📋 รายการพรรคทั้งหมดในระบบ</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-600 uppercase text-sm leading-normal">
+                                    <th class="py-3 px-6 text-center">เบอร์</th>
+                                    <th class="py-3 px-6">รูปภาพ</th>
+                                    <th class="py-3 px-6">ชื่อพรรค</th>
+                                    <th class="py-3 px-6">รายละเอียด</th>
+                                    <th class="py-3 px-6 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-candidate-list" class="text-gray-600 text-sm font-light"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+       import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, increment, onSnapshot, query, orderBy, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        const firebaseConfig = {
+            apiKey: "AIzaSyBX3jxBteIkRNHsqpkLh0rRHLlcgtDV1oI",
+            authDomain: "student-council-election-31443.firebaseapp.com",
+            databaseURL: "https://student-council-election-31443-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "student-council-election-31443",
+            storageBucket: "student-council-election-31443.firebasestorage.app",
+            messagingSenderId: "84426008374",
+            appId: "1:84426008374:web:fb2c47fea7a31f6b0b3597",
+            measurementId: "G-PTZCSX7W0B"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let isVotingOpen = false;
+
+        // --- โหลดข้อมูลโลโก้และสถานะโหวต ---
+        onSnapshot(doc(db, "settings", "schoolLogo"), (d) => {
+            if(d.exists()){
+                const img = document.getElementById('nav-logo');
+                img.src = d.data().url;
+                img.classList.remove('hidden');
+            }
+        });
+
+        onSnapshot(doc(db, "settings", "voting"), (d) => {
+            if(d.exists()){
+                isVotingOpen = d.data().isOpen;
+                document.getElementById('status-text').innerText = isVotingOpen ? "สถานะ: ✅ กำลังเปิดโหวต" : "สถานะ: 🔒 ปิดการโหวต";
+            }
+        });
+
+        // --- ระบบสลับหน้า ---
+        window.showPage = (id) => {
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        };
+
+        // --- ตรวจสอบสิทธิ์ผู้ใช้ ---
+        window.verifyUser = async () => {
+            const sid = document.getElementById('input-id').value.trim();
+            if(!sid) return alert("กรุณากรอกรหัสประจำตัว");
+            if(!isVotingOpen) return alert("❌ ขณะนี้ระบบปิดการลงคะแนน");
+
+            const uSnap = await getDoc(doc(db, "users", sid));
+            if(uSnap.exists()){
+                const data = uSnap.data();
+                if(data.hasVoted) return alert("⚠️ คุณได้ใช้สิทธิ์ไปแล้ว");
+                currentUser = { id: sid, ...data };
+                document.getElementById('user-info').innerText = `สวัสดี: ${data.ชื่อ} ${data.นามสกุล}`;
+                loadVoteGrid();
+                showPage('page-vote');
+            } else {
+                alert("❌ ไม่พบรหัสประจำตัวนี้");
+            }
+        };
+
+        // --- แสดงพรรคในหน้าโหวต (เวอร์ชันแก้ไขรูปเกินกรอบ) ---
+// --- แสดงพรรคในหน้าโหวต (เวอร์ชันแก้ไขรูปไม่พอดี) ---
+function loadVoteGrid() {
+    const q = query(collection(db, "candidates"), orderBy("number", "asc"));
+    onSnapshot(q, (snap) => {
+        const grid = document.getElementById('candidate-grid');
+        grid.innerHTML = "";
+        snap.forEach(d => {
+            const c = d.data();
+            
+            // --- สร้าง HTML ของ Card ---
+            grid.innerHTML += `
+                <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 flex flex-col h-full transform transition hover:scale-[1.02]">
+                    
+                    <div class="w-full h-64 bg-gray-50 flex items-center justify-center p-2">
+                        <img src="${c.img || 'https://via.placeholder.com/400x300'}" 
+                             class="max-w-full max-h-full object-contain rounded-2xl"
+                             alt="รูปพรรค ${c.name}">
+                    </div>
+
+                    <div class="p-6 text-center flex flex-col flex-grow bg-white">
+                        <div>
+                            <span class="bg-blue-100 text-[#003366] px-4 py-1 rounded-full text-sm font-bold uppercase tracking-wider">
+                                เบอร์ ${c.number}
+                            </span>
+                            <h3 class="text-2xl font-black mt-3 text-gray-800">${c.name}</h3>
+                            <p class="text-gray-500 text-sm mt-2 line-clamp-2 h-10">${c.detail || ''}</p>
+                        </div>
+                        
+                        <div class="mt-auto pt-4">
+                            <button onclick="confirmVote('${d.id}', '${c.name}')" 
+                                    class="w-full bg-[#22c55e] text-white py-4 rounded-2xl font-bold text-lg hover:bg-[#16a34a] transition-all shadow-lg shadow-green-100 active:scale-95">
+                                โหวต
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+        });
+    });
+}
+        window.confirmVote = async (cid, name) => {
+            if(!confirm(`ยืนยันโหวตให้ "${name}" ?`)) return;
+            await updateDoc(doc(db, "candidates", cid), { votes: increment(1) });
+            await updateDoc(doc(db, "users", currentUser.id), { hasVoted: true });
+            alert("✅ ลงคะแนนสำเร็จ");
+            location.reload();
+        };
+
+        // --- ตารางแสดงผล Admin Real-time ---
+        const adminQ = query(collection(db, "candidates"), orderBy("number", "asc"));
+        onSnapshot(adminQ, (snap) => {
+            const list = document.getElementById('admin-candidate-list');
+            list.innerHTML = "";
+            snap.forEach(d => {
+                const c = d.data();
+                list.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="py-3 px-6 text-center font-bold">${c.number}</td>
+                        <td class="py-3 px-6 text-center"><img src="${c.img}" class="w-10 h-10 rounded mx-auto object-cover"></td>
+                        <td class="py-3 px-6 font-bold">${c.name}</td>
+                        <td class="py-3 px-6 text-gray-500">${c.detail || '-'}</td>
+                        <td class="py-3 px-6 text-center">
+                            <button onclick="editCandidate('${d.id}', ${c.number}, '${c.name}', '${c.detail || ''}', '${c.img}')" class="text-blue-600 mr-2">✏️ แก้ไข</button>
+                            <button onclick="deleteCandidate('${d.id}', '${c.name}')" class="text-red-600">🗑️ ลบ</button>
+                        </td>
+                    </tr>`;
+            });
+        });
+
+        // --- ระบบจัดการพรรค ---
+        window.addCandidate = async () => {
+            const no = document.getElementById('c-no').value;
+            const name = document.getElementById('c-name').value;
+            const detail = document.getElementById('c-detail').value;
+            const rawUrl = document.getElementById('c-img-url').value;
+            if(!no || !name) return alert("กรุณากรอกข้อมูลให้ครบ");
+
+            const docRef = doc(db, "candidates", "p_"+no);
+            const snap = await getDoc(docRef);
+            let votes = 0;
+            if(snap.exists()) {
+                votes = snap.data().votes;
+                if(!confirm("เบอร์นี้มีอยู่แล้ว ต้องการบันทึกทับใช่หรือไม่?")) return;
+            }
+
+            await setDoc(docRef, { number: parseInt(no), name, detail, img: formatGDriveLink(rawUrl), votes });
+            alert("✅ บันทึกสำเร็จ");
+            ['c-no','c-name','c-detail','c-img-url'].forEach(id => document.getElementById(id).value = "");
+            document.getElementById('btn-save-candidate').innerText = "บันทึกข้อมูล";
+        };
+
+        window.editCandidate = (id, no, name, detail, img) => {
+            document.getElementById('c-no').value = no;
+            document.getElementById('c-name').value = name;
+            document.getElementById('c-detail').value = detail;
+            document.getElementById('c-img-url').value = img;
+            document.getElementById('btn-save-candidate').innerText = "💾 บันทึกการแก้ไข";
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        };
+
+        window.deleteCandidate = async (id, name) => {
+            if(confirm(`ต้องการลบ "${name}" ใช่หรือไม่?`)) await deleteDoc(doc(db, "candidates", id));
+        };
+
+        // --- ฟังก์ชันเสริม ---
+        window.toggleVoting = async () => await setDoc(doc(db, "settings", "voting"), { isOpen: !isVotingOpen });
+        
+        window.saveLogoUrl = async () => {
+            const url = formatGDriveLink(document.getElementById('school-logo-url').value);
+            await setDoc(doc(db, "settings", "schoolLogo"), { url });
+            alert("บันทึกโลโก้แล้ว");
+        };
+
+        function formatGDriveLink(url) {
+            if (url.includes('drive.google.com')) {
+                let fileId = url.includes('id=') ? url.split('id=')[1].split('&')[0] : url.split('/d/')[1].split('/')[0];
+                return `https://lh3.googleusercontent.com/d/${fileId}`;
+            }
+            return url;
+        }
+
+        window.uploadExcel = async () => {
+            const file = document.getElementById('excel-file').files[0];
+            if(!file) return alert("เลือกไฟล์ก่อน");
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result), {type:'array'}).SheetNames[0]]);
+                for(let r of json) {
+                    const id = String(r['รหัสประจำตัว']);
+                    if(id) await setDoc(doc(db, "users", id), { ...r, hasVoted: false });
+                }
+                alert("นำเข้าสำเร็จ");
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        // --- ผลคะแนน Real-time ---
+        onSnapshot(query(collection(db, "candidates"), orderBy("votes", "desc")), (snap) => {
+            const res = document.getElementById('realtime-results');
+            res.innerHTML = "";
+            snap.forEach(d => {
+                const c = d.data();
+                res.innerHTML += `
+                    <div class="flex items-center p-4 bg-gray-50 rounded-xl">
+                        <img src="${c.img}" class="w-12 h-12 rounded-full object-cover mr-4">
+                        <div class="flex-1 font-bold">เบอร์ ${c.number} - ${c.name}</div>
+                        <div class="text-2xl font-black text-blue-900">${c.votes}</div>
+                    </div>`;
+            });
+        });
+
+       window.exportResultImage = async () => {
+    // 1. แสดง Loading
+    const btn = document.querySelector('[onclick="exportResultImage()"]');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ กำลังสร้างรายงาน...";
+    btn.disabled = true;
+
+    try {
+        // 2. ดึงข้อมูลพรรคการเมืองล่าสุด
+        const q = query(collection(db, "candidates"), orderBy("votes", "desc"));
+        const querySnapshot = await getDocs(q); // ต้องมั่นใจว่า import getDocs แล้ว
+        const candidates = [];
+        querySnapshot.forEach(doc => candidates.push(doc.data()));
+
+        if (candidates.length === 0) throw new Error("ไม่มีข้อมูลพรรคในระบบ");
+
+        // 3. สร้าง Canvas ขนาดรายงาน
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const padding = 60;
+        canvas.width = 1000;
+        canvas.height = 300 + (candidates.length * 100);
+
+        // 4. วาดพื้นหลังสีขาว
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 5. วาดหัวข้อรายงาน
+        ctx.fillStyle = "#003366"; // สีน้ำเงินเข้ม
+        ctx.font = "bold 50px Sarabun, sans-serif";
+        ctx.fillText("รายงานสรุปผลคะแนนเลือกตั้ง", padding, 100);
+        
+        ctx.font = "bold 30px Sarabun, sans-serif";
+        ctx.fillStyle = "#333333";
+        ctx.fillText("สภานักเรียน โรงเรียนประสาทวิทยานนทบุรี", padding, 150);
+
+        // 6. วาดเส้นแบ่ง
+        ctx.beginPath();
+        ctx.moveTo(padding, 180);
+        ctx.lineTo(canvas.width - padding, 180);
+        ctx.strokeStyle = "#dddddd";
+        ctx.stroke();
+
+        // 7. วาดกราฟและข้อมูลพรรค
+        let y = 250;
+        const maxVotes = Math.max(...candidates.map(p => p.votes), 1);
+
+        candidates.forEach((c, index) => {
+            // ลำดับ
+            ctx.fillStyle = index === 0 ? "#f59e0b" : "#666666"; // สีทองสำหรับที่ 1
+            ctx.font = "bold 35px Sarabun";
+            ctx.fillText(`#${index + 1}`, padding, y);
+
+            // ชื่อพรรค
+            ctx.fillStyle = "#000000";
+            ctx.font = "bold 32px Sarabun";
+            ctx.fillText(`เบอร์ ${c.number} - ${c.name}`, padding + 100, y);
+
+            // กราฟแท่ง (Bar Graph)
+            const barMaxWidth = 450;
+            const barWidth = (c.votes / maxVotes) * barMaxWidth;
+            
+            ctx.fillStyle = "#e5e7eb"; // สีเทาอ่อน (พื้นกราฟ)
+            ctx.fillRect(550, y - 30, barMaxWidth, 35);
+            
+            ctx.fillStyle = "#003366"; // สีแถบคะแนน
+            ctx.fillRect(550, y - 30, barWidth, 35);
+
+            // จำนวนคะแนน
+            ctx.fillStyle = "#003366";
+            ctx.font = "bold 35px Sarabun";
+            ctx.fillText(`${c.votes.toLocaleString()} คะแนน`, 550 + barMaxWidth + 20, y);
+
+            y += 100;
+        });
+
+        // 8. บันทึกรูปภาพ
+        const image = canvas.toDataURL("image/png");
+        const link = document.createElement('a');
+        link.download = `ผลคะแนน-${new Date().getTime()}.png`;
+        link.href = image;
+        link.click();
+        
+        alert("✅ สร้างไฟล์รายงานผลคะแนนสำเร็จ!");
+
+    } catch (err) {
+        console.error("Error:", err);
+        alert("❌ เกิดข้อผิดพลาด: " + err.message);
+    } finally {
+        // 9. คืนค่าปุ่ม
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+};
+
+// --- ระบบล็อกอินหน้า Admin ---
+window.showPage = (id) => {
+    if (id === 'page-admin') {
+        const password = prompt("กรุณากรอกรหัสผ่านสำหรับ Admin:");
+        if (password !== "1234") {
+            alert("❌ รหัสผ่านไม่ถูกต้อง!");
+            return; // ไม่เปลี่ยนหน้า
+        }
+    }
+    
+    // เปลี่ยนหน้าตามปกติหากรหัสถูกต้องหรือไม่ใช่หน้า admin
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+};
+
+// --- ระบบคำนวณสรุปจำนวนผู้มาใช้สิทธิ์ (Auto Update) ---
+onSnapshot(collection(db, "users"), (snap) => {
+    let total = snap.size; // จำนวนผู้มีสิทธิ์ทั้งหมดในคอลเลกชัน users
+    let voted = 0;
+
+    snap.forEach(doc => {
+        if (doc.data().hasVoted === true) {
+            voted++;
+        }
+    });
+
+    let percent = total > 0 ? ((voted / total) * 100).toFixed(2) : 0;
+
+    // อัปเดตตัวเลขในหน้าจอ
+    document.getElementById('stat-total').innerText = total.toLocaleString();
+    document.getElementById('stat-voted').innerText = voted.toLocaleString();
+    document.getElementById('stat-percent').innerText = percent + "%";
+    
+    // อัปเดต Progress Bar สีเขียว-น้ำเงิน
+    document.getElementById('overall-progress-bar').style.width = percent + "%";
+});
+
+window.resetSystem = async () => {
+    const confirm1 = confirm("⚠️ คำเตือน: คุณกำลังจะล้างคะแนนโหวตทั้งหมด และคืนสิทธิ์ให้ผู้ลงคะแนนทุกคน\nต้องการดำเนินการต่อหรือไม่?");
+    if (!confirm1) return;
+
+    const confirm2 = confirm("🚩 ยืนยันครั้งสุดท้าย! ข้อมูลคะแนนเดิมจะหายไปทั้งหมด?");
+    if (!confirm2) return;
+
+    // แสดง Loading
+    const btn = document.querySelector('[onclick="resetSystem()"]');
+    btn.innerText = "⏳ กำลังรีเซ็ต...";
+    btn.disabled = true;
+
+    try {
+        const batch = writeBatch(db);
+
+        // 1. รีเซ็ตคะแนนในคอลเลกชัน candidates
+        const candidatesSnap = await getDocs(collection(db, "candidates"));
+        candidatesSnap.forEach((d) => {
+            batch.update(doc(db, "candidates", d.id), { votes: 0 });
+        });
+
+        // 2. รีเซ็ตสถานะการโหวตในคอลเลกชัน users
+        const usersSnap = await getDocs(collection(db, "users"));
+        usersSnap.forEach((d) => {
+            batch.update(doc(db, "users", d.id), { hasVoted: false });
+        });
+
+        // 3. ยืนยันการเปลี่ยนแปลงทั้งหมด
+        await batch.commit();
+
+        alert("✅ รีเซ็ตระบบเรียบร้อยแล้ว! คะแนนเป็น 0 และนักเรียนทุกคนสามารถโหวตได้ใหม่");
+    } catch (error) {
+        console.error(error);
+        alert("❌ เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+        btn.innerText = "♻️ รีเซ็ตคะแนนและสิทธิ์การโหวต";
+        btn.disabled = false;
+    }
+};
+
+window.exportVoterStatus = async () => {
+    // 1. แสดง Loading
+    const btn = document.querySelector('[onclick="exportVoterStatus()"]');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ กำลังรวบรวมข้อมูล...";
+    btn.disabled = true;
+
+    try {
+        // 2. ดึงข้อมูลผู้ใช้ทั้งหมดจาก Firebase
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const data = [];
+
+        querySnapshot.forEach((doc) => {
+            const user = doc.data();
+            data.push({
+                "รหัสประจำตัว": user.รหัสประจำตัว || "",
+                "ชื่อ": user.ชื่อ || "",
+                "นามสกุล": user.นามสกุล || "",
+                "ชื่อเล่น": user.ชื่อเล่น|| "",
+                "ระดับชั้น": user.ระดับชั้น || "",
+                "สถานะการโหวต": user.hasVoted ? "✅ ลงคะแนนแล้ว" : "❌ ยังไม่ได้ลงคะแนน",
+                "เวลาที่บันทึก": user.votedAt ? new Date(user.votedAt).toLocaleString('th-TH') : "-"
+            });
+        });
+
+        if (data.length === 0) return alert("ไม่มีข้อมูลรายชื่อนักเรียนในระบบ");
+
+        // 3. เรียงข้อมูลตามรหัสประจำตัว
+        data.sort((a, b) => a.รหัสประจำตัว.localeCompare(b.รหัสประจำตัว));
+
+        // 4. สร้าง Worksheet และ Workbook
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "สถานะการโหวต");
+
+        // 5. ปรับขนาดความกว้างของคอลัมน์ (เลือกตามความเหมาะสม)
+        const wscols = [
+            {wch: 15}, {wch: 20}, {wch: 20}, {wch: 15}, {wch: 20}, {wch: 25}
+        ];
+        worksheet['!cols'] = wscols;
+
+        // 6. ดาวน์โหลดไฟล์
+        XLSX.writeFile(workbook, `สรุปการใช้สิทธิ์_${new Date().toLocaleDateString('th-TH')}.xlsx`);
+
+    } catch (error) {
+        console.error(error);
+        alert("❌ เกิดข้อผิดพลาดในการส่งออกข้อมูล: " + error.message);
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+};
+
+// --- เฝ้าติดตามจำนวนผู้มาใช้สิทธิ์แบบ Real-time ---
+onSnapshot(collection(db, "users"), (snap) => {
+    let total = snap.size; // จำนวนทั้งหมดในฐานข้อมูล
+    let voted = 0;
+
+    snap.forEach(doc => {
+        if (doc.data().hasVoted === true) {
+            voted++;
+        }
+    });
+
+    let pending = total - voted; // จำนวนคนที่ยังไม่มาโหวต
+    let percent = total > 0 ? ((voted / total) * 100).toFixed(1) : 0;
+
+    // อัปเดตตัวเลขลงหน้าเว็บ
+    document.getElementById('stat-total').innerText = total.toLocaleString();
+    document.getElementById('stat-voted').innerText = voted.toLocaleString();
+    document.getElementById('stat-pending').innerText = pending.toLocaleString();
+    document.getElementById('stat-percent-text').innerText = percent + "%";
+    
+    // อัปเดตความยาวแถบ Progress Bar
+    document.getElementById('overall-progress-bar').style.width = percent + "%";
+});
+
+    </script>
+</body>
+</html>
