@@ -343,19 +343,69 @@ function loadVoteGrid() {
         }
 
         window.uploadExcel = async () => {
-            const file = document.getElementById('excel-file').files[0];
-            if(!file) return alert("เลือกไฟล์ก่อน");
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result), {type:'array'}).SheetNames[0]]);
-                for(let r of json) {
-                    const id = String(r['รหัสประจำตัว']);
-                    if(id) await setDoc(doc(db, "users", id), { ...r, hasVoted: false });
+    const fileInput = document.getElementById('excel-file');
+    const file = fileInput.files[0];
+    
+    if (!file) return alert("กรุณาเลือกไฟล์ Excel ก่อนครับ");
+
+    // สร้าง Pop-up แจ้งสถานะเบื้องต้น
+    const statusDiv = document.createElement('div');
+    statusDiv.id = 'upload-loader';
+    statusDiv.innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+            <div class="bg-white p-8 rounded-2xl text-center shadow-2xl">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+                <p class="text-lg font-bold">กำลังนำเข้าข้อมูล...</p>
+                <p id="progress-count" class="text-sm text-gray-500">กรุณารอสักครู่...</p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(statusDiv);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const sheetName = wb.SheetNames[0];
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+
+            if (json.length === 0) throw new Error("ไฟล์ Excel ไม่มีข้อมูล");
+
+            let successCount = 0;
+            const progText = document.getElementById('progress-count');
+
+            for (let row of json) {
+                // ตรวจสอบชื่อคอลัมน์ (ต้องตรงกับใน Excel เป๊ะๆ)
+                const studentId = String(row['รหัสประจำตัว'] || "").trim();
+                
+                if (studentId) {
+                    await setDoc(doc(db, "users", studentId), {
+                        รหัสประจำตัว: studentId,
+                        ชื่อ: row['ชื่อ'] || "",
+                        นามสกุล: row['นามสกุล'] || "",
+                        ชื่อเล่น: row['ชื่อเล่น'] || "",
+                        ระดับชั้น: row['ระดับชั้น'] || "",
+                        hasVoted: false,
+                        isRegistered: false
+                    });
+                    successCount++;
+                    progText.innerText = `กำลังบันทึก: ${successCount} จาก ${json.length} รายการ`;
                 }
-                alert("นำเข้าสำเร็จ");
-            };
-            reader.readAsArrayBuffer(file);
-        };
+            }
+
+            alert(`✅ นำเข้าข้อมูลสำเร็จทั้งหมด ${successCount} รายชื่อ`);
+        } catch (error) {
+            console.error(error);
+            alert("❌ เกิดข้อผิดพลาด: " + error.message + "\nตรวจสอบว่าชื่อคอลัมน์ใน Excel ถูกต้องหรือไม่");
+        } finally {
+            // ลบ Pop-up แจ้งสถานะออก
+            document.getElementById('upload-loader').remove();
+            fileInput.value = ""; // ล้างค่าไฟล์
+        }
+    };
+    reader.readAsArrayBuffer(file);
+};
 
         // --- ผลคะแนน Real-time ---
         onSnapshot(query(collection(db, "candidates"), orderBy("votes", "desc")), (snap) => {
